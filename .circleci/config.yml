@@ -92,6 +92,32 @@ commands:
 
 jobs:
 
+  install-backend-dependencies:
+    executor: node
+    steps:
+      - checkout
+      - run:
+          name: npm install
+          working_directory: ./backend
+          command: ls -la && npm install
+      - persist_to_workspace:
+          root: .
+          paths:
+            - backend/node_modules
+
+
+  install-frontend-dependencies:
+   executor: node
+   steps:
+      - checkout
+      - run:
+          name: npm install
+          working_directory: ./frontend
+          command: ls -la && npm install
+      - persist_to_workspace:
+          root: .
+          paths:
+            - frontend/node_modules
 # -----------------------------  Build front end ----------------------
   build-frontend:
     <<: *dok_node
@@ -197,7 +223,7 @@ jobs:
           working_directory: ./frontend
           command: 
 #            npm i 
-            npm install --force
+#            npm install --force
             npm audit fix --audit-level=critical --force
 #      - slack/notify:
 #          <<: *slack_msg
@@ -209,8 +235,8 @@ jobs:
       MY_STEP_NAME: "Security scan backend"    
     steps:
       - checkout  
-      - restore_cache:
-          keys: [backend-build]          
+#      - restore_cache:
+#          keys: [backend-build]          
       - run:
           name: backend security check
           working_directory: ./backend
