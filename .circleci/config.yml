@@ -93,7 +93,9 @@ commands:
 jobs:
 
   install-backend-dependencies:
-    executor: node
+    <<: *dok_node
+    environment: 
+      MY_STEP_NAME: "backend-dependencies"
     steps:
       - checkout
       - run:
@@ -107,8 +109,11 @@ jobs:
 
 
   install-frontend-dependencies:
-   executor: node
-   steps:
+    <<: *dok_node
+    environment:
+      MY_STEP_NAME: "backend-dependencies"
+#    executor: node
+    steps:
       - checkout
       - run:
           name: npm install
@@ -579,6 +584,8 @@ jobs:
 workflows:
   default:
     jobs:
+      - install-backend-dependencies
+      - install-frontend-dependencies
       - build-frontend
 #          context: slack-secrets
       - build-backend
@@ -621,4 +628,4 @@ workflows:
       - cleanup:
           requires: [cloudfront-update]
 #          context: slack-secrets
-#  --------------------------  End of Job  ----------------------------------------   
+#  --------------------------  End of Job  ----------------------------------------    
