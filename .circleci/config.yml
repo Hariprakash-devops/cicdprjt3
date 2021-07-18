@@ -17,6 +17,17 @@ docvaraws: &dok_awscli
 docansibl: &dok_ansible
     docker:
       - image: python:3.7-alpine3.11 
+      
+executors:
+  node:
+    docker:
+      - image: circleci/node:13.8.0
+  python:
+    docker:
+      - image: python:3.9.0-alpine
+  aws:
+    docker:
+      - image: amazon/aws-cli
 
 #slackvarfail: &slack_msg      
 #          event: fail
@@ -65,7 +76,6 @@ commands:
             aws cloudformation delete-stack --stack-name udapeoplep3-backend-<<parameters.workflow_id>>
             aws s3 rm s3://udapeoplep3-udap-<<parameters.workflow_id>> --recursive
             aws cloudformation delete-stack --stack-name udapeoplep3-frontend-<<parameters.workflow_id>>
-
 # ----------------------------------   to reverse the migration   --------------------------------------------------------------------------
   revert-migrations:
     description: Revert the last migration if successfully run in the current workflow.    
@@ -85,7 +95,6 @@ commands:
                 apk add --update tar gzip curl nodejs npm
                 npm run migrations:revert
               fi
-
 #  ------------------------------------------------------------------------------------------------------------------------------------------
 #    Jobs list startd from here    
 #    the sequence of jobs will be in work flow
@@ -94,129 +103,130 @@ commands:
 
 jobs:
 
-# -----------------------------  Build front end ----------------------
-  build-frontend:
-    <<: *dok_node
-    environment: 
-      MY_STEP_NAME: "Test frontend"
+  install-backend-dependencies:
+    executor: node
     steps:
       - checkout
-      - restore_cache:
-          keys: [frontend-build]
       - run:
-          name: Build front-end
-          working_directory: ./frontend
-          command:             
-            npm i
-            npm run build                        
-      - save_cache:
-          paths: [frontend/node_modules]
-          key: frontend-build          
-#      - slack/notify: 
-#          <<: *slack_msg          
+          name: npm install
+          working_directory: ./backend
+          command: ls -la && npm install
+      - persist_to_workspace:
+          root: .
+          paths:
+            - backend/node_modules
 
-# -----------------------------  Build back end ----------------------
+
+  install-frontend-dependencies:
+   executor: node
+   steps:
+      - checkout
+      - run:
+          name: npm install
+          working_directory: ./frontend
+          command: ls -la && npm install
+      - persist_to_workspace:
+          root: .
+          paths:
+            - frontend/node_modules
+
+
   build-backend:
-    <<: *dok_node
-    environment: 
-      MY_STEP_NAME: "Test frontend"
+    executor: node
     steps:
       - checkout
-      - restore_cache:
-          keys: [backend-build]
+      - attach_workspace:
+          at: .
       - run:
-          name: Back-end build
+          name: npm run build
           working_directory: ./backend
-          command:              
-             npm i
-             npm run build             
-      - save_cache:
-          paths: [backend/node_modules]
-          key: backend-build
- #     - slack/notify:
- #         <<: *slack_msg       
-# -----------------------------  Test front end  ----------------------
+          command: npm run build
+      - persist_to_workspace:
+          root: .
+          paths:
+            - backend/dist
+
+
+  build-frontend:
+    executor: node
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: npm run build
+          working_directory: ./frontend
+          command: npm run build
+
+
   test-frontend:
-    <<: *dok_node
-    environment: 
-      MY_STEP_NAME: "Test frontend"
+    executor: node
     steps:
       - checkout
-      - restore_cache:
-          keys: [frontend-build]
+      - attach_workspace:
+          at: .
       - run:
-          name: Run tests with JUnit 
+          name: Install junit coverage reporter
           working_directory: ./frontend
-          command:               
-              npm i
-              npm test
+          command: npm install --save-dev jest-junit
+      - run:
+          name: Run tests with JUnit as reporter
+          working_directory: ./frontend
+          command: npm test -- --ci --runInBand --reporters=default --reporters=jest-junit && pwd && ls -la /tmp
           environment:
-            JEST_JUNIT_OUTPUT_DIR: ./testres
+            JEST_JUNIT_OUTPUT_DIR: ./test_results
       - store_test_results:
-          path: ./frontend/testres
+          path: ./frontend/test_results
       - store_artifacts:
-          path: ./frontend/testres
-#      - slack/notify:
-#          <<: *slack_msg
+          path: ./frontend/test_results
 
-# -----------------------------  Test back end  ----------------------                
+
   test-backend:
-    <<: *dok_node
-    environment: 
-      MY_STEP_NAME: "Test backend"    
+    executor: node
     steps:
       - checkout
-      - restore_cache:
-          keys: [backend-build]
+      - attach_workspace:
+          at: .
       - run:
-          name: Run tests with JUnit
+          name: Install junit coverage reporter
           working_directory: ./backend
-          command: 
-              npm i
-              npm test
+          command: npm install --save-dev jest-junit
+      - run:
+          name: Run tests with JUnit as reporter
+          working_directory: ./backend
+          command: npm test -- --ci --runInBand --reporters=default --reporters=jest-junit && pwd
           environment:
-            JEST_JUNIT_OUTPUT_DIR: ./testres
+            JEST_JUNIT_OUTPUT_DIR: ./test_results
       - store_test_results:
-          path: ./backend/testres
+          path: ./backend/test_results
       - store_artifacts:
-          path: ./backend/testres
-#      - slack/notify:
-#          <<: *slack_msg
+          path: ./backend/test_results
 
-# -----------------------------  Test front end for security ----------            
+
   scan-frontend:
-    <<: *dok_node
-    environment: 
-      MY_STEP_NAME: "Security scan frontend"    
+    executor: node
     steps:
       - checkout
-      - restore_cache:
-          keys: [frontend-build]      
+      - attach_workspace:
+          at: .
       - run:
-          name: frontend security check
+          name: Check Frontend against security vulnerabilities
           working_directory: ./frontend
           command: 
-            npm i
-            npm audit fix --audit-level=critical --force
-#      - slack/notify:
-#          <<: *slack_msg
+            npm install
+            npm audit fix --audit-level=critical  --force
 
-# -----------------------------  Test front end for security ----------            
+
   scan-backend:
-    <<: *dok_node
-    environment: 
-      MY_STEP_NAME: "Security scan backend"    
+    executor: node
     steps:
-      - checkout  
-      - restore_cache:
-          keys: [backend-build]          
+      - checkout
+      - attach_workspace:
+          at: .
       - run:
-          name: backend security check
+          name: Check Backend against security vulnerabilities
           working_directory: ./backend
-          command: 
-            npm audit fix --audit-level=critical --force
- #     - slack/notify:
- #         <<: *slack_msg
+          command: npm audit fix --audit-level=critical  --force
 
 #   -------------------------------------------------------------------------
 #                   AWS  INFRA. PART start from here
@@ -508,7 +518,6 @@ jobs:
             export STACKS=($(aws cloudformation list-stacks --query "StackSummaries[*].StackName" \
               --stack-status-filter CREATE_COMPLETE --no-paginate --output text))
             printf '%s\n' "${STACKS[@]}"
-
             aws cloudformation deploy \
               --template-file .circleci/files/cloudfront.yml \
               --parameter-overrides WorkflowID="udap-${CIRCLE_WORKFLOW_ID:0:7}" \
@@ -533,10 +542,8 @@ jobs:
               export OldWorkflowID=$(aws cloudformation \
                 list-exports --query "Exports[?Name==\`WorkflowID\`].Value" \
                 --no-paginate --output text)
-
               export STACKS=($(aws cloudformation list-stacks --query "StackSummaries[*].StackName" \
                 --stack-status-filter CREATE_COMPLETE --no-paginate --output text))
-
               echo "Old Workflow ID: ${OldWorkflowID}"
               if [ "${OldWorkflowID}" != "<< pipeline.parameters.workflow-id >>" ]
               then
@@ -555,47 +562,52 @@ jobs:
 workflows:
   default:
     jobs:
-      - build-frontend:
-          context: slack-secrets
+      ## BUILD AND DEPLOY
+      - install-backend-dependencies
+      - install-frontend-dependencies
+
       - build-backend:
-          context: slack-secrets
-      - test-frontend:
-          requires: [build-frontend]
-          context: slack-secrets
+          requires:
+            - install-backend-dependencies
+      - build-frontend:
+          requires:
+            - install-frontend-dependencies
       - test-backend:
-          requires: [build-backend]
-          context: slack-secrets
-      - scan-frontend:
-          requires: [build-frontend]
-          context: slack-secrets
+          requires:
+            - build-backend
+      - test-frontend:
+          requires:
+            -  build-frontend
       - scan-backend:
-          requires: [build-backend]
-          context: slack-secrets
+          requires:
+            - build-backend
+      - scan-frontend:
+          requires:
+            - build-frontend
       - deploy-infrastructure:
           requires: [build-frontend, build-backend, test-frontend, test-backend, scan-frontend, scan-backend]
-          context: slack-secrets
           filters:
             branches:
               only: [master]
       - configure-infrastructure:
           requires: [deploy-infrastructure]
-          context: slack-secrets
+#          context: slack-secrets
       - run-migrations:
           requires: [configure-infrastructure]
-          context: slack-secrets
+#          context: slack-secrets
       - deploy-backend:
           requires: [run-migrations] 
-          context: slack-secrets     
+#          context: slack-secrets     
       - deploy-frontend:
           requires: [run-migrations, deploy-backend]
-          context: slack-secrets
+#          context: slack-secrets
       - smoke-test:
           requires: [deploy-backend, deploy-frontend]
-          context: slack-secrets
+#          context: slack-secrets
       - cloudfront-update:
           requires: [smoke-test]
-          context: slack-secrets      
+#          context: slack-secrets      
       - cleanup:
           requires: [cloudfront-update]
 #          context: slack-secrets
-#  --------------------------  End of Job  ----------------------------------------          
+#  --------------------------  End of Job  ----------------------------------------    
