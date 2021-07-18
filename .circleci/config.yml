@@ -289,7 +289,7 @@ jobs:
     steps:
       - checkout
       - add_ssh_keys:
-          fingerprints: ["3a:16:f7:4e:00:8e:d9:eb:8a:1c:0b:b1:3d:e6:43:6f"]
+          fingerprints: ["94:7c:fd:1a:c4:f5:7c:70:04:20:a2:84:16:33:60:17"]
       - attach_workspace:
           at: ~/
       - restore_cache:
@@ -431,7 +431,7 @@ jobs:
       - restore_cache:
           keys: [backend-build]
       - add_ssh_keys:
-          fingerprints: ["3a:16:f7:4e:00:8e:d9:eb:8a:1c:0b:b1:3d:e6:43:6f"]
+          fingerprints: ["94:7c:fd:1a:c4:f5:7c:70:04:20:a2:84:16:33:60:17"]
       - attach_workspace:
           at: ~/
       - run: 
