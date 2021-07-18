@@ -195,6 +195,7 @@ jobs:
           working_directory: ./frontend
           command: 
 #            npm i 
+            npm install
             npm audit fix --audit-level=critical --force
 #      - slack/notify:
 #          <<: *slack_msg
