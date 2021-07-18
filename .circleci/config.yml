@@ -147,6 +147,7 @@ jobs:
           working_directory: ./frontend
           command:               
 #              npm i
+              npm install -g jest
               npm test
           environment:
             JEST_JUNIT_OUTPUT_DIR: ./testres
