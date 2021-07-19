@@ -621,7 +621,7 @@ workflows:
       - cloudfront-update:
           requires: [smoke-test]
 #          context: slack-secrets      
-      - cleanup:
-          requires: [cloudfront-update]
+#      - cleanup:
+#          requires: [cloudfront-update]
 #          context: slack-secrets
 #  --------------------------  End of Job  ----------------------------------------    
